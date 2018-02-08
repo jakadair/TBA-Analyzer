@@ -1,22 +1,55 @@
 Option Compare Database
 Option Explicit
+
+Private Sub btnClearTables_Click()
+    If MsgBox(" Are you sure you want to clear the tables? ", vbYesNo) = vbYes Then
+        Dim dbs As DAO.Database
+        Set dbs = CurrentDb
+        dbs.Execute "DELETE [tblITP.*] FROM tblITP;"
+        dbs.Execute "DELETE [tblEmployee.*] FROM tblEmployee;"
+        Set dbs = Nothing
+    End If
+End Sub
+
 Private Sub btnImportITP_Click()
     Dim table As String
     table = "tblITP"
-    importFromFile (table)
+    ImportFromFile (table)
 End Sub
 
-Private Function importFromFile(table As String)
+Private Function ImportFromFile(table As String)
     Dim fileName As String
     fileName = GetFileName()
     ImportFromExcel (fileName)
-    populateTblVersions (table)
+    'PopulateTblVersions (table)
     
     ' Set dbs to current database
-    'Set dbs = CurrentDb
+    Dim dbs As DAO.Database
+    Set dbs = CurrentDb
     
-    ' Transfer data from temp tables to ITP and Employee tables
-    'dbs.Execute "INSERT INTO tblEmployee ("
+    ' Delete data from tblEmployee in prep for import
+    ' Not required due to DISTINCT keyword in SQL Statement
+    'dbs.Execute "DELETE [tblEmployee.*] FROM tblEmployee;"
+    
+    ' Delete data from tblITP in prep for import
+    dbs.Execute "DELETE [tblITP.*] FROM tblITP;"
+    
+    ' Transfer DISTINCT data from temp table to Employee table
+    dbs.Execute "INSERT INTO tblEmployee ( EmployeeNumber, EmployeeName ) " _
+        & "SELECT DISTINCT tblTemp.[EMPLOYEE #], tblTemp.[EMPLOYEE NAME] " _
+        & "FROM tblTemp;"
+
+    ' Transfer ITP from temp table to ITP table
+    dbs.Execute "Insert Into tblITP ( employeeNumber, taskNumber, startDate, " _
+        & "completionDate, traineeInitials, trainerInitials, certifierInitials) " _
+        & "SELECT tblTemp.[EMPLOYEE #], tblTemp.[TASK NUMBER], tblTemp.[START DATE], " _
+        & "tblTemp.[COMPLETION DATE], tblTemp.[TRAINEE], tblTemp.[TRAINER],  " _
+        & "tblTemp.[CERTIFIER] " _
+        & "FROM tblTemp;"
+    
+    RemoveTempTable
+    
+    Set dbs = Nothing
     
 End Function
 
@@ -87,7 +120,8 @@ Private Function RemoveTempTable()
     Set TD = Nothing
 End Function
 
-Private Function populateTblVersions(table As String)
+' Unused currently
+Private Function PopulateTblVersions(table As String)
     Dim importDate As Date
     Dim tmpStringStg As String
     Dim sqlString As String
@@ -99,16 +133,17 @@ Private Function populateTblVersions(table As String)
     Set dbs = CurrentDb
     Set TD = dbs.TableDefs("tblTemp")
     
+    ' Check for and remove old table version record
+    
     'Extract the date
     tmpStringStg = TD.Fields(0).Name
     tmpStringStg = Right(tmpStringStg, Len(tmpStringStg) - 10)
     tmpStringStg = Left(tmpStringStg, 17)
-    'MsgBox (tmpStringStg)
+
+
     ' Write date time to tblVersions
     sqlString = "INSERT INTO tblVersions(tblName, [dateTime]) VALUES('" & table & "','" & tmpStringStg & "');"
     MsgBox (sqlString)
-    
-    ' Insert Code to check for previous table entries for same table.
     
     dbs.Execute sqlString, dbFailOnError
     
@@ -116,3 +151,4 @@ Private Function populateTblVersions(table As String)
     Set TD = Nothing
 
 End Function
+
