@@ -7,7 +7,8 @@ Private Sub btnClearTables_Click()
         Set dbs = CurrentDb
         dbs.Execute "DELETE [tblITP.*] FROM tblITP;"
         dbs.Execute "DELETE [tblEmployee.*] FROM tblEmployee;"
-        Set dbs = Nothing
+        dbs.Execute "DELETE [tblCFETP.*] FROM tblCFETP;"
+        dbs.Close
     End If
 End Sub
 
@@ -29,28 +30,39 @@ Private Function ImportFromFile(table As String)
     
     ' Delete data from tblEmployee in prep for import
     ' Not required due to DISTINCT keyword in SQL Statement
-    'dbs.Execute "DELETE [tblEmployee.*] FROM tblEmployee;"
+    dbs.Execute "DELETE [tblEmployee.*] FROM tblEmployee;"
     
     ' Delete data from tblITP in prep for import
     dbs.Execute "DELETE [tblITP.*] FROM tblITP;"
+    
+    ' Delete data from tblCFETP in prep for import
+    dbs.Execute "DELETE [tblCFETP.*] FROM tblCFETP;"
     
     ' Transfer DISTINCT data from temp table to Employee table
     dbs.Execute "INSERT INTO tblEmployee ( EmployeeNumber, EmployeeName ) " _
         & "SELECT DISTINCT tblTemp.[EMPLOYEE #], tblTemp.[EMPLOYEE NAME] " _
         & "FROM tblTemp;"
 
-    ' Transfer ITP from temp table to ITP table
-    dbs.Execute "Insert Into tblITP ( employeeNumber, taskNumber, startDate, " _
+    ' Transfer ITP from temp table to ITP table excluding headers
+    dbs.Execute "INSERT INTO tblITP ( EmployeeNumber, taskNumber, startDate, " _
         & "completionDate, traineeInitials, trainerInitials, certifierInitials) " _
         & "SELECT tblTemp.[EMPLOYEE #], tblTemp.[TASK NUMBER], tblTemp.[START DATE], " _
         & "tblTemp.[COMPLETION DATE], tblTemp.[TRAINEE], tblTemp.[TRAINER],  " _
         & "tblTemp.[CERTIFIER] " _
-        & "FROM tblTemp;"
+        & "FROM tblTemp WHERE Nz(tblTemp.[PAFSC],'') <> '';"
     
+    ' Transfer CFETP data to CFETP Table
+    ' Remove CFETP Table and merge all with ITP Table.  Product type add as an entry.
+    ' Add PAFSC into ITP as well as Core Task.  It will simplify extracting data.
+    
+    dbs.Execute "INSERT INTO tblCFETP ( taskNumber, pafsc, taskKnowledge) " _
+        & "SELECT DISTINCT tblTemp.[TASK NUMBER], tblTemp.[PAFSC], tblTemp.[TASK KNOWLEDGE] " _
+        & "FROM tblTemp;"
+        
     RemoveTempTable
     
-    Set dbs = Nothing
-    
+    dbs.Close
+        
 End Function
 
 Private Sub btnRetToMain_Click()
@@ -80,7 +92,6 @@ Private Function ImportFromExcel(filePath As String)
     RemoveTempTable
     
     Dim dbs As DAO.Database
-    Dim TD As DAO.TableDef
     
     ' set dbs to current database
     Set dbs = CurrentDb
@@ -94,8 +105,7 @@ Private Function ImportFromExcel(filePath As String)
     
     ' Release Objects
     ''TODO'' undo changes to excel doc
-    Set dbs = Nothing
-    Set TD = Nothing
+    dbs.Close
 End Function
 
 
@@ -116,8 +126,9 @@ Private Function RemoveTempTable()
     
     ' Release Objects
         ' Release Objects
-    Set dbs = Nothing
     Set TD = Nothing
+    dbs.Close
+    
 End Function
 
 ' Unused currently
